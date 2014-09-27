@@ -12,9 +12,11 @@ function print_usage() {
   - Debian 7 => apt-get install
   - Debian 6 => fix up apt repositories for squeeze-lts and then apt-get install
   - Supported Ubuntus (12.04 LTS, 14.04 LTS, 14.10) => apt-get install
-  - Unsupported Ubuntu (11.10, 13.04, and potentially others) => install from an ubuntu package and apt-mark hold bash 
-  - Debian 5 (and potentially other Debians and Ubuntus) => build from source
-  - RHEL4, RHEL3 => unsupported for now
+  - Unsupported Ubuntu (11.10, 13.04) => install from an ubuntu package and apt-mark hold bash
+  - Unsupported Ubuntus (others per EOL_UBUNTU_DISTROS variable) => convert to old-releases.ubuntu.com and build from source
+  - Debian 5 (and potentially other Debians) => build from source
+  - RHEL4 => try and get yum + centos vault working, compile a patched RPM, else download and install a pre-compiled one.
+  - RHEL3, RH9 => unsupported for now
   
   Use with --source if you just wish to have the functions available to you for testing
   
@@ -22,7 +24,12 @@ function print_usage() {
   
   Run with --usage to get this message
   
-  Run without an argument to try and fix your server"
+  Run without an argument to try and fix your server
+  
+  Written by Peter Bryant at http://lauchtimevps.com
+  
+  Latest version (or thereabouts) available at https://github.com/pbkwee/deshellshock
+  "
 }
 
 function print_CVE_2014_7169_vulnerable() {
@@ -51,6 +58,10 @@ function is_CVE_2014_7169_vulnerable() {
   return $?
 }
 
+function is_vulnerable() {
+	is_CVE_2014_6271_vulnerable && return 0
+	is_CVE_2014_7169_vulnerable && return 1 
+}
 # use print_vulnerability_status beforefix and print_vulnerability_status afterfix
 function print_vulnerability_status() {
 local prefix=${1:-prefix}
@@ -61,6 +72,14 @@ echo "dss:isvulnerable:$prefix: CVE_2014_7169$(print_CVE_2014_7169_vulnerable)"
 function prep_shellshock_output_dir() {
 if [ ! -d /root/deshellshockinfo ] ; then echo "dss:info: creating /root/deshellshockinfo and cd-ing there."; mkdir /root/deshellshockinfo; fi
 [ -d /root/deshellshockinfo ] && cd /root/deshellshockinfo
+if [ ! -e /root/deshellshockinfo/bash.orig ]; then 
+  echo "dss:info: Running cp /bin/bash /root/deshellshockinfo/bash.orig"
+  if ! cp /bin/bash /root/deshellshockinfo/bash.orig; then 
+    echo "dss:error: failed making a copy of the original bash binary.  Is there a disk error, out of disk space?"
+    return 1
+  fi
+fi
+return 0
 }
 
 function print_info() {
@@ -101,6 +120,7 @@ cat /etc/lsb-release  | sed 's/^/lsbreleasefile:/'
 #DISTRIB_CODENAME=oneiric
 #DISTRIB_DESCRIPTION="Ubuntu 11.10"
 fi
+return 0
 }
 
 
@@ -152,6 +172,7 @@ deb-src http://http.debian.net/debian/ squeeze-lts main contrib non-free
 " >> /etc/apt/sources.list
 echo "info: added missing squeeze-lts repos"
 fi 
+return 0
 }
 
 
@@ -175,7 +196,7 @@ sed -i 's@^deb http://security.debian.org/ lenny@#deb http://security.debian.org
 sed -i 's@^deb-src http://ftp.us.debian.org/debian lenny main contrib@#deb-src http://ftp.us.debian.org/debian lenny main contrib@' /etc/apt/sources.list
 echo "deb http://archive.debian.org/debian/ lenny main non-free contrib" >> /etc/apt/sources.list
 echo "dss:info: lenny apt sources now has $(cat /etc/apt/sources.list | egrep -v '^$|^#')"
-
+return 0
 }
 
 function print_distro_info() {
@@ -217,10 +238,59 @@ echo "dss:info: bash not installed.  Not running apt-get install bash"
 return 0
 }
 
+function yum_enable_rhel4() {
+[ ! -f /etc/redhat-release ] && return 0
+! grep -qai 'release.* 4' /etc/redhat-release && return 0
+if which yum >/dev/null 2>&1; then echo "dss:info: yum enabled on a rhel4 distro already."; return 0; fi
+echo "dss:info:yum not enabled on $(print_distro_info).  Trying to enable it."
+{
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/libxml2-2.6.16-12.6.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/libxml2-python-2.6.16-12.6.i386.rpm
+
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/readline-4.3-13.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/python-2.3.4-14.7.el4.i386.rpm
+
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/python-elementtree-1.2.6-5.el4.centos.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/sqlite-3.3.6-2.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/python-sqlite-1.1.7-1.2.1.i386.rpm
+
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/http://vault.centos.org/4.9/os/i386/CentOS/RPMS/elfutils-libelf-0.97.1-5.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/elfutils-0.97.1-5.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/popt-1.9.1-32_nonptl.i386.rpm
+
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/python-urlgrabber-2.9.8-2.noarch.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/yum-metadata-parser-1.0-8.el4.centos.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/centos-release-4-8.i386.rpm
+rpm -Uvh http://vault.centos.org/4.9/os/i386/CentOS/RPMS/yum-2.4.3-4.el4.centos.noarch.rpm
+if [ ! -e /root/deshellshockinfo/CentOS-Base.repo ]; then 
+  echo "dss:info: Running cp /etc/yum.repos.d/CentOS-Base.repo /root/deshellshockinfo/CentOS-Base.repo" 
+  cp /etc/yum.repos.d/CentOS-Base.repo /root/deshellshockinfo/CentOS-Base.repo
+fi
+
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://vault.centos.org/4.9/CentOS-Base.repo
+}
+if which yum >/dev/null 2>&1; then echo "dss:info: yum enabled on a rhel4 distro."; return 0
+else echo "dss:info: yum install failed on a rhel4 distro."; return 1 ; fi
+return 0
+}
+
 function fix_rh4_wbel3() {
 if [ ! -f /etc/redhat-release ]; then echo "dss:info: Not redhat.  Not doing RH4 fix."; return 0; fi
-if grep -qai 'release.* 4' /etc/redhat-release; then 
+if grep -qai 'Shrike' /etc/redhat-release; then 
+  # RH9
   true
+elif grep -qai 'release.* 7' /etc/redhat-release; then 
+  # yum install
+  return 0
+elif  grep -qai 'release.* 6' /etc/redhat-release; then
+  # yum install 
+  return 0
+elif  grep -qai 'release.* 5' /etc/redhat-release; then
+  # yum install 
+  return 0
+elif  grep -qai 'release.* 4' /etc/redhat-release; then
+  # rpm build 
+  return 0
 elif  grep -qai 'release.* 3' /etc/redhat-release; then 
   true
 elif  grep -qai 'release.* 2' /etc/redhat-release; then 
@@ -228,7 +298,7 @@ elif  grep -qai 'release.* 2' /etc/redhat-release; then
 elif  grep -qai 'release.* 1' /etc/redhat-release; then 
   true
 else 
-  echo "dss:info: Redhat, but not RH3 or RH4.  Not doing RH3/RH4 fix."; return 0
+  return 0
 fi
 
 # cat /etc/redhat-release 
@@ -237,8 +307,56 @@ echo "dss:warn: There is currently no autopatch option for $(cat /etc/redhat-rel
 return 1
 }
 
+# build an rpm package
+function fix_rhel4() {
+  [ ! -f /etc/redhat-release ] && return 0
+  ! is_vulnerable && return 0 
+  ! grep -qai 'release.* 4' /etc/redhat-release && return 0
+  echo "dss:info:Attempting to build a patched bash RPM from a SRPM."
+    mkdir -p /root/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS} 
+    echo "%_topdir /root/rpmbuild/" > /root/.rpmmacros
+    rpm -Uvh http://vault.centos.org/4.9/apt/i386/SRPMS.updates/bash-3.0-27.el4.src.rpm
+    cd /root/rpmbuild/SOURCES/
+    # http://ftp.gnu.org/pub/gnu/bash/bash-3.0-patches/
+    for((i=17;i<19;i++)); do 
+    wget -O bash30-0$i http://ftp.gnu.org/pub/gnu/bash/bash-3.0-patches/bash30-0$i || return 1
+    # bash30-017:*** ../bash-3.0.16/builtins/common.h	2004-04-23 16:51:00.000000000 -0400
+    # bash30-017:--- builtins/common.h	2014-09-16 21:57:03.000000000 -0400
+    # should be like: bash30-015:*** ../bash-3.0-patched/general.c	Wed Apr 14 23:20:13 2004
+    sed -i 's/bash-3.0.[0-9][0-9]/bash-3.0/' bash30-0$i
+    # Patch16: bash30-016
+    # # Other patches
+    # insert our new patches
+    ! grep -qai "Patch$i bash30-0$i" /root/rpmbuild/SPECS/bash.spec && sed -i "s/Patch$((i-1)): bash30-0$((i-1))/Patch$((i-1)): bash30-0$((i-1))\nPatch$i: bash30-0$i/" /root/rpmbuild/SPECS/bash.spec
+    # %patch16 -p0 -b .016
+    ! grep -qai "%patch$i -p0 -b .0$i" /root/rpmbuild/SPECS/bash.spec && sed -i "s/%patch$((i-1)) -p0 -b .0$((i-1))/%patch$((i-1)) -p0 -b .0$((i-1))\n%patch$((i)) -p0 -b .0$((i))/" /root/rpmbuild/SPECS/bash.spec    
+    done
+    # patch 16 is commented out for some reason, and that breaks the build
+    sed -i 's@#%patch16@%patch16@' /root/rpmbuild/SPECS/bash.spec
+    
+    cd /root/rpmbuild/SPECS
+    yum install -y texinfo bison libtermcap-devel
+    # install build dependencies based on the spec
+    yum install -y $(rpmbuild -ba bash.spec 2>&1 | grep needed | awk {' print $1 '})
+    if ! rpmbuild -ba bash.spec; then echo "dss:error:rpmbuild of bash for rhel4 failed."; return 1; fi
+    if [ ! -f /root/rpmbuild/RPMS/i386/bash-3.0-27.i386.rpm ]; then echo "dss:error:rpmbuild of bash for rhel4 failed, rpm not created."; return 1; fi
+    if ! rpm -Uvh -oldpackage /root/rpmbuild/RPMS/i386/bash-3.0-27.i386.rpm; then echo "dss:error:install of built bash rpm failed."; return 1; fi
+	echo "dss:fixmethod: bash RPM patch and build" 
+	return 0
+}
+
+function fix_rhel4_via_download() {
+  [ ! -f /etc/redhat-release ] && return 0
+  ! is_vulnerable && return 0 
+  ! grep -qai 'release.* 4' /etc/redhat-release && return 0
+  # -oldpackage since I found a few places where there was a 'newer' but exploitable rpm
+  if ! rpm --oldpackage -Uvh http://downloads.rimuhosting.com/bash-3.0-27.i386.rpm ; then echo "dss:error: failing installing downloaded rhel4 rpm"; fi
+  echo "dss:fixmethod: bash RPM download"  
+  return 0
+}
+
 function fix_centos5_plus() {
-if ! print_distro_info | grep REDHAT | egrep -qai 'release.* 5|release.* 6|release.*7' ; then echo "dss:info: not centos5 to centos7, not doing a centos5-7 fix for $(print_distro_info)"; return 0; fi
+if ! print_distro_info | grep REDHAT | egrep -qai 'release.* 5|release.* 6|release.* 7' ; then echo "dss:info: not centos5 to centos7, not doing a centos5-7 fix for $(print_distro_info)"; return 0; fi
 echo "dss:info: doing a centos5-7 fix for $(print_distro_info)"
 if ! which yum >/dev/null 2>&1 ; then 
   #rpm http://centos5.rimuhosting.com/centos /5 os updates rimuhosting addons extras centosplus
@@ -289,6 +407,7 @@ else
   [ $ret -eq 0 ] && sudo apt-mark hold bash
   return $ret
 fi
+return 0
 }
 
 function fix_via_build_for_certain_distros() {
@@ -303,7 +422,15 @@ if [ $(print_distro_info | egrep 'Debian GNU/Linux 5|Ubuntu 8' | wc -l) -eq 0 ];
 
 echo "dss:info: This is an ubuntu/debian distro.  Likely out of long term support.  Attempting to make/install bash from source."
 
-apt-get update; apt-get -y --force-yes install build-essential gettext bison || return 1
+apt-get update
+apt-get -y -f autoremove
+apt-get -f install
+if ! apt-get -y --force-yes install build-essential gettext bison; then
+  echo "dss:error: failed installing build dependencies: apt-get -y --force-yes install build-essential gettext bison.  continuing on, but the build will likely fail."
+  for i in build-essential gettext bison  ; do
+  	apt-get -y --force-yes install $i
+  done    
+fi
 
 # get bash 3.2 source
 wget http://ftp.gnu.org/gnu/bash/bash-3.2.tar.gz || return 1
@@ -331,6 +458,7 @@ echo "dss:info: succeeded building bash."
 echo "dss:info: new bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
 echo "dss:info: new bash ls: $(ls -l $(which bash))"
 echo "dss:fixmethod: src build"
+return 0
 }
 
 function build_from_source_unused() {
@@ -378,8 +506,11 @@ fix_missing_lsb_release
 fix_via_apt_install_bash || return $?
 
 # explain how you are SOL for now
+yum_enable_rhel4 || return $?
 fix_rh4_wbel3 || return $?
-
+# if it fails we will try the rpm download
+fix_rhel4 #|| return $?
+fix_rhel4_via_download || return $?
 fix_centos5_plus || return $?
 fix_ubuntu_11_10 || return $?
 fix_via_build_for_certain_distros || return $?
