@@ -2,6 +2,9 @@
 
 
 DEBIAN_FRONTEND=noninteractive
+# https://wiki.ubuntu.com/Releases
+# lucid server still current?
+EOL_UBUNTU_DISTROS="breezy dapper edgy feisty gutsy hardy hoary intrepid jaunty karmic maverick natty oneiric quantal raring warty" 
 
 function print_usage() {
   echo "Checks to see if a server has a 'shellshocked' bash (vulnerable to CVE_2014_6271 or CVE_2014_7169)
@@ -24,7 +27,7 @@ function print_usage() {
 
 function print_CVE_2014_7169_vulnerable() {
 # http://en.wikipedia.org/wiki/Shellshock_%28software_bug%29#Testing_2
-if [ -f echo ] ; then echo "Remove the echo file first"; return 2; fi
+if [ -f echo ] ; then echo "dss:Remove the echo file first"; return 2; fi
 X='() { (a)=>\' bash -c "echo date" >/dev/null 2>&1
 if [ -f echo ]; then rm -f echo; echo "Y"; return 0; fi
 echo "N"
@@ -51,26 +54,26 @@ function is_CVE_2014_7169_vulnerable() {
 # use print_vulnerability_status beforefix and print_vulnerability_status afterfix
 function print_vulnerability_status() {
 local prefix=${1:-prefix}
-echo "isvulnerable:$prefix: CVE_2014_6271$(print_CVE_2014_6271_vulnerable)"
-echo "isvulnerable:$prefix: CVE_2014_7169$(print_CVE_2014_7169_vulnerable)"
+echo "dss:isvulnerable:$prefix: CVE_2014_6271$(print_CVE_2014_6271_vulnerable)"
+echo "dss:isvulnerable:$prefix: CVE_2014_7169$(print_CVE_2014_7169_vulnerable)"
 }
 
 function prep_shellshock_output_dir() {
-if [ ! -d /root/rhshellshockinfo ] ; then echo "info: creating /root/rhshellshockinfo and cd-ing there."; mkdir /root/rhshellshockinfo; fi
-[ -d /root/rhshellshockinfo ] && cd /root/rhshellshockinfo
+if [ ! -d /root/deshellshockinfo ] ; then echo "dss:info: creating /root/deshellshockinfo and cd-ing there."; mkdir /root/deshellshockinfo; fi
+[ -d /root/deshellshockinfo ] && cd /root/deshellshockinfo
 }
 
 function print_info() {
-echo "hostname: $(hostname)"
-echo "date: $(date -u)"
-echo "Testing for CVE_2014_6271 (error messages occurring here can be expected):"
+echo "dss:hostname: $(hostname)"
+echo "dss:date: $(date -u)"
+echo "dss:Testing for CVE_2014_6271 (error messages occurring here can be expected):"
 env x='() { :;}; echo vulnerable' bash -c "echo" 2>&1
 local val1=$(print_CVE_2014_6271_vulnerable)
 local ret1=$?
-echo "CVE_2014_6271 result isvulnerable $val1 $ret1"
-echo "Testing for CVE-2014_7169 (error messages occurring here can be expected):"
+echo "dss:CVE_2014_6271 result isvulnerable $val1 $ret1"
+echo "dss:Testing for CVE-2014_7169 (error messages occurring here can be expected):"
 if [ -f echo ] ; then 
-  echo "warn: cannot test.  There is an echo file already."; 
+  echo "dss:warn: cannot test.  There is an echo file already."; 
   val2="NA"
   ret2=-1
 else 
@@ -79,17 +82,17 @@ else
   local val2=$(print_CVE_2014_7169_vulnerable)
   local ret2=$?
 fi
-echo "CVE-2014_7169 result isvulnerable $val2 $ret2"
-echo "Bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
-echo "Bash ls: $(ls -l $(which bash))"
-echo "Redhat-release: $([ ! -f /etc/redhat-release ] && echo 'NA'; [ -f /etc/redhat-release ] && cat /etc/redhat-release)"
-echo "Debian-version: $([ ! -f /etc/debian_version ] && echo 'NA'; [ -f /etc/debian_version ] && cat /etc/debian_version)"
+echo "dss:CVE-2014_7169 result isvulnerable $val2 $ret2"
+echo "dss:Bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
+echo "dss:Bash ls: $(ls -l $(which bash))"
+echo "dss:Redhat-release: $([ ! -f /etc/redhat-release ] && echo 'NA'; [ -f /etc/redhat-release ] && cat /etc/redhat-release)"
+echo "dss:Debian-version: $([ ! -f /etc/debian_version ] && echo 'NA'; [ -f /etc/debian_version ] && cat /etc/debian_version)"
 print_distro_info
 if which lsb_release >/dev/null 2>&1; then 
-  echo "lsbreleasecommand: $(lsb_release -a 2>/dev/null)"
+  echo "dss:lsbreleasecommand: $(lsb_release -a 2>/dev/null)"
   #Distributor ID: Ubuntu Description: Ubuntu 11.10 Release: 11.10 Codename: oneiric
 else 
-  echo "lsbreleasecommand: NA"
+  echo "dss:lsbreleasecommand: NA"
 fi
 if [ -e /etc/lsb-release ] ; then
 cat /etc/lsb-release  | sed 's/^/lsbreleasefile:/'
@@ -102,22 +105,45 @@ fi
 
 
 function convert_deb_6_stable_repo_to_squeeze() {
-if [ ! -f /etc/debian_version ] ; then echo "info: Not debian.  Not converting deb6 stable to squeeze"; return 0; fi
+if [ ! -f /etc/debian_version ] ; then echo "dss:info: Not debian.  Not converting deb6 stable to squeeze"; return 0; fi
 
-if [ ! -f /etc/apt/sources.list  ]; then echo "warn: Odd.  Debian distro but no apt sources.list"; return 1; fi
+if [ ! -f /etc/apt/sources.list  ]; then echo "dss:warn: Odd.  Debian distro but no apt sources.list"; return 1; fi
 
 # cat /etc/debian_version 
 # 6.0.4
-if ! grep -qai "^6." /etc/debian_version; then echo "info: Not debian 6.  Not converting deb6 stable to squeeze"; return 0; fi
+if ! grep -qai "^6." /etc/debian_version; then echo "dss:info: Not debian 6.  Not converting deb6 stable to squeeze"; return 0; fi
 
-if ! grep -qai "^deb.*stable" /etc/apt/sources.list ; then echo "info: Not using 'stable' repo.  Not converting deb6 stable to squeeze"; return 0; fi
+if ! grep -qai "^deb.*stable" /etc/apt/sources.list ; then echo "dss:info: Not using 'stable' repo.  Not converting deb6 stable to squeeze"; return 0; fi
 
-if [ ! -e /root/rhshellshockinfo/sources.list ]; then echo "info: Running cp /etc/apt/sources.list /root/rhshellshockinfo/sources.list"; cp /etc/apt/sources.list /root/rhshellshockinfo/sources.list; fi
+if [ ! -e /root/deshellshockinfo/sources.list ]; then echo "dss:info: Running cp /etc/apt/sources.list /root/deshellshockinfo/sources.list"; cp /etc/apt/sources.list /root/deshellshockinfo/sources.list; fi
 
 sed -i 's@^deb http://http.us.debian.org/debian stable@deb http://http.us.debian.org/debian squeeze@' /etc/apt/sources.list
 sed -i 's@^deb http://security.debian.org stable@deb http://security.debian.org squeeze@' /etc/apt/sources.list
 return 0
 }
+
+function convert_old_ubuntu_repo() {
+[ ! -f /etc/apt/sources.list ] && return 0
+CODENAME=$1
+if [ -z "$CODENAME" ]; then echo "dss:error: we require a codename here.  e.g. convert_old_ubuntu_repo hardy"; return 1; fi
+
+! egrep -qai "^deb.*ubuntu/ $CODENAME|^deb.*ubuntu $CODENAME" /etc/apt/sources.list && return 0
+if grep -qai '^deb .*old-releases.ubuntu.com' /etc/apt/sources.list; then echo "dss:info: already running an 'old-releases' $CODENAME repository."; return 0; fi
+
+if [ ! -e /root/deshellshockinfo/sources.list ]; then echo "dss:info: Running cp /etc/apt/sources.list /root/deshellshockinfo/sources.list"; cp /etc/apt/sources.list /root/deshellshockinfo/sources.list; fi
+
+echo "dss:info: commenting out expired $CODENAME repository and adding in the 'old-releases' repository"
+sed -i "s@^deb http://us.archive.ubuntu.com/ubuntu/ $CODENAME@#deb http://us.archive.ubuntu.com/ubuntu/ $CODENAME@" /etc/apt/sources.list
+sed -i "s@^deb http://security.ubuntu.com/ubuntu $CODENAME@#deb http://security.ubuntu.com/ubuntu $CODENAME@" /etc/apt/sources.list
+echo "
+deb http://old-releases.ubuntu.com/ubuntu/ $CODENAME main restricted universe multiverse
+deb http://old-releases.ubuntu.com/ubuntu/ $CODENAME-updates main restricted universe multiverse
+deb http://old-releases.ubuntu.com/ubuntu/ $CODENAME-security main restricted universe multiverse" >> /etc/apt/sources.list
+
+return 0
+
+}
+
 
 function add_missing_squeeze_lts() {
 if [ -e /etc/apt/sources.list ] && grep -qai '^deb.*squeeze' /etc/apt/sources.list && ! grep -qai squeeze-lts /etc/apt/sources.list; then echo "
@@ -138,28 +164,28 @@ function convert_old_lenny_repo() {
 
 # already using archives, all good
 if grep -qai '^deb http://archive.debian.org/debian/ lenny' /etc/apt/sources.list; then
-  echo "info: this is a lenny distro, and already has archive.debian in the repository."
+  echo "dss:info: this is a lenny distro, and already has archive.debian in the repository."
   return 0
 fi
 
-if [ ! -e /root/rhshellshockinfo/sources.list ]; then echo "info: Running cp /etc/apt/sources.list /root/rhshellshockinfo/sources.list"; cp /etc/apt/sources.list /root/rhshellshockinfo/sources.list; fi
+if [ ! -e /root/deshellshockinfo/sources.list ]; then echo "dss:info: Running cp /etc/apt/sources.list /root/deshellshockinfo/sources.list"; cp /etc/apt/sources.list /root/deshellshockinfo/sources.list; fi
 
 sed -i 's@^deb http://ftp.us.debian.org/debian lenny@#deb http://ftp.us.debian.org/debian lenny@' /etc/apt/sources.list
 sed -i 's@^deb http://security.debian.org/ lenny@#deb http://security.debian.org/ lenny@' /etc/apt/sources.list
 sed -i 's@^deb-src http://ftp.us.debian.org/debian lenny main contrib@#deb-src http://ftp.us.debian.org/debian lenny main contrib@' /etc/apt/sources.list
 echo "deb http://archive.debian.org/debian/ lenny main non-free contrib" >> /etc/apt/sources.list
-echo "info: lenny apt sources now has $(cat /etc/apt/sources.list | egrep -v '^$|^#')"
+echo "dss:info: lenny apt sources now has $(cat /etc/apt/sources.list | egrep -v '^$|^#')"
 
 }
 
 function print_distro_info() {
 if which lsb_release >/dev/null 2>&1; then 
-  local foo="distroinfo: $(lsb_release -a 2>/dev/null)"
+  local foo="dss:distroinfo: $(lsb_release -a 2>/dev/null)"
   echo $foo
 elif [ -f /etc/redhat-release ]; then
-  local foo="distroinfo: REDHAT $(cat /etc/redhat-release)" 
+  local foo="dss:distroinfo: REDHAT $(cat /etc/redhat-release)" 
   echo $foo
-else echo "distroinfo: NA"; fi
+else echo "dss:distroinfo: NA"; fi
 return 0
 }
 
@@ -167,32 +193,32 @@ return 0
 function fix_missing_lsb_release() {
 which lsb_release >/dev/null 2>&1 && return 0
 ! [ -f /etc/debian_version ] && return 0
-echo "info: missing lsb release command.  trying to install it."
+echo "dss:info: missing lsb release command.  trying to install it."
 apt-get update
 apt-get -y --force-yes install lsb-release
 }
 
 function fix_via_apt_install_bash() {
-if ! which dpkg >/dev/null 2>&1; then echo "info: dpkg not installed.  Skipping apt-get install"; return 0; fi
-if print_distro_info | grep Ubuntu | grep -qai 'Release: 11.10'; then 
-  echo "info: running an EOL Ubuntu.  Not doing an apt-get install -y bash.  $(print_distro_info)"
+if ! which dpkg >/dev/null 2>&1; then echo "dss:info: dpkg not installed.  Skipping apt-get install"; return 0; fi
+if print_distro_info | grep Ubuntu | egrep -qai "$(echo $EOL_UBUNTU_DISTROS | sed 's/ /|')"; then 
+  echo "dss:info: running an EOL Ubuntu.  Not doing an apt-get install -y bash.  $(print_distro_info)"
   return 0
 fi
 
 if dpkg -s bash 2>/dev/null | grep -q "Status.*installed" ; then 
-  echo "info: attempting to apt-get install bash"
+  echo "dss:info: attempting to apt-get install bash"
   apt-get update
   apt-get -y --force-yes install bash
   ret=$?
-  echo "fixmethod: apt-get install" 
+  echo "dss:fixmethod: apt-get install" 
   return $ret
 fi
-echo "info: bash not installed.  Not running apt-get install bash"
+echo "dss:info: bash not installed.  Not running apt-get install bash"
 return 0
 }
 
 function fix_rh4_wbel3() {
-if [ ! -f /etc/redhat-release ]; then echo "info: Not redhat.  Not doing RH4 fix."; return 0; fi
+if [ ! -f /etc/redhat-release ]; then echo "dss:info: Not redhat.  Not doing RH4 fix."; return 0; fi
 if grep -qai 'release.* 4' /etc/redhat-release; then 
   true
 elif  grep -qai 'release.* 3' /etc/redhat-release; then 
@@ -202,37 +228,37 @@ elif  grep -qai 'release.* 2' /etc/redhat-release; then
 elif  grep -qai 'release.* 1' /etc/redhat-release; then 
   true
 else 
-  echo "info: Redhat, but not RH3 or RH4.  Not doing RH3/RH4 fix."; return 0
+  echo "dss:info: Redhat, but not RH3 or RH4.  Not doing RH3/RH4 fix."; return 0
 fi
 
 # cat /etc/redhat-release 
 #Red Hat Enterprise Linux WS release 4 (Nahant)
-echo "warn: There is currently no autopatch option for $(cat /etc/redhat-release)"
+echo "dss:warn: There is currently no autopatch option for $(cat /etc/redhat-release)"
 return 1
 }
 
 function fix_centos5_plus() {
-if ! print_distro_info | grep REDHAT | egrep -qai 'release.* 5|release.* 6|release.*7' ; then echo "info: not centos5 to centos7, not doing a centos5-7 fix for $(print_distro_info)"; return 0; fi
-echo "info: doing a centos5-7 fix for $(print_distro_info)"
+if ! print_distro_info | grep REDHAT | egrep -qai 'release.* 5|release.* 6|release.*7' ; then echo "dss:info: not centos5 to centos7, not doing a centos5-7 fix for $(print_distro_info)"; return 0; fi
+echo "dss:info: doing a centos5-7 fix for $(print_distro_info)"
 if ! which yum >/dev/null 2>&1 ; then 
   #rpm http://centos5.rimuhosting.com/centos /5 os updates rimuhosting addons extras centosplus
   if [ ! -f /etc/apt/sources.list ]; then
-    echo "warn: cannot do a yum install on this host, yum not installed, no /etc/apt/sources.list either."
+    echo "dss:warn: cannot do a yum install on this host, yum not installed, no /etc/apt/sources.list either."
     return 1
   fi
   if ! which apt-get >/dev/null 2>&1 ; then 
-    echo "warn: cannot do a yum install on this host, yum not installed, no apt-get either."
+    echo "dss:warn: cannot do a yum install on this host, yum not installed, no apt-get either."
   fi
-  echo "info: trying to install yum via apt-get"
+  echo "dss:info: trying to install yum via apt-get"
   apt-get -y install yum
 fi
 if ! which yum >/dev/null 2>&1 ; then 
-  echo "warn: cannot do a yum install on this host, yum not installed"
+  echo "dss:warn: cannot do a yum install on this host, yum not installed"
   return 1
 fi
 yum install -y bash
 ret=$?
-echo "fixmethod: yum install bash" 
+echo "dss:fixmethod: yum install bash" 
 return $ret
 }
 
@@ -245,20 +271,20 @@ fi
 
 if uname -a | grep -qai i686; then 
 # Linux 2.6.32.28-xenU SMP Thu Jan 20 00:41:40 UTC 2011 i686 i686 i386 GNU/Linux
-  echo "info: attempting to patch this distro, which is no longer supported, with the 32 bit lts deb package"
+  echo "dss:info: attempting to patch this distro, which is no longer supported, with the 32 bit lts deb package"
   wget http://security.ubuntu.com/ubuntu/pool/main/b/bash/bash_4.1-2ubuntu3.2_i386.deb
   dpkg -i bash_4.1-2ubuntu3.2_i386.deb
   ret=$?
-  echo "fixmethod: dpkg ubuntu"
+  echo "dss:fixmethod: dpkg ubuntu"
   # prevent upgrades overwriting this one
   [ $ret -eq 0 ] && sudo apt-mark hold bash
   return $ret
 else 
-  echo "info: attempting to patch this distro, which is no longer supported, with the 64 bit lts deb package"
+  echo "dss:info: attempting to patch this distro, which is no longer supported, with the 64 bit lts deb package"
   wget http://security.ubuntu.com/ubuntu/pool/main/b/bash/bash_4.1-2ubuntu3.2_amd64.deb
   dpkg -i bash_4.1-2ubuntu3.2_amd64.deb
   ret=$?
-  echo "fixmethod: dpkg ubuntu"
+  echo "dss:fixmethod: dpkg ubuntu"
   # prevent upgrades overwriting this one
   [ $ret -eq 0 ] && sudo apt-mark hold bash
   return $ret
@@ -266,16 +292,16 @@ fi
 }
 
 function fix_via_build_for_certain_distros() {
-if [ $(print_distro_info | egrep 'Debian|Ubuntu' | wc -l) -eq 0 ]; then echo "info: not a debian or ubuntu distro.  Not attempting to install from source."; return 0; fi
+if [ $(print_distro_info | egrep 'Debian|Ubuntu' | wc -l) -eq 0 ]; then echo "dss:info: not a debian or ubuntu distro.  Not attempting to install from source."; return 0; fi
 if ! is_CVE_2014_7169_vulnerable  && ! is_CVE_2014_6271_vulnerable ; then 
   # nothing to do
   return 0;
 fi
-if [ $(print_distro_info | egrep 'Debian GNU/Linux 7|Debian GNU/Linux 6|Ubuntu.*10.04|Ubuntu.*12.04|Ubuntu.*14.04|Ubuntu.*13' | wc -l) -gt 0 ]; then echo "info: Not attempting to install from source.  There are better options available for this distro."; return 0; fi
+if [ $(print_distro_info | egrep 'Debian GNU/Linux 7|Debian GNU/Linux 6|Ubuntu.*10.04|Ubuntu.*12.04|Ubuntu.*14.04|Ubuntu.*13' | wc -l) -gt 0 ]; then echo "dss:info: Not attempting to install from source.  There are better options available for this distro."; return 0; fi
 
-if [ $(print_distro_info | egrep 'Debian GNU/Linux 5|xxxxx' | wc -l) -eq 0 ]; then echo "info: Not one of the 'known to work' options for install from source: Debian GNU/Linux 5.  Not attempting to install from source."; return 0; fi
+if [ $(print_distro_info | egrep 'Debian GNU/Linux 5|Ubuntu 8' | wc -l) -eq 0 ]; then echo "dss:info: Not one of the 'known to work' options for install from source: Debian GNU/Linux 5.  Not attempting to install from source."; return 0; fi
 
-echo "info: This is an ubuntu/debian distro.  Likely out of long term support.  Attempting to make/install bash from source."
+echo "dss:info: This is an ubuntu/debian distro.  Likely out of long term support.  Attempting to make/install bash from source."
 
 apt-get update; apt-get -y --force-yes install build-essential gettext bison || return 1
 
@@ -298,13 +324,13 @@ make install || return 1
 
 # point /bin/bash to the new binary
 [ ! -f /bin/bash.old ] && [ -e /bin/bash ] && mv /bin/bash /bin/bash.old
-if [ ! -f /usr/local/bin/bash ] ; then echo "error: /usr/local/bin/bash was not built."; return 1; fi
-if ! /usr/local/bin/bash -c true ; then echo "error: /usr/local/bin/bash was working."; return 1; fi 
+if [ ! -f /usr/local/bin/bash ] ; then echo "dss:error: /usr/local/bin/bash was not built."; return 1; fi
+if ! /usr/local/bin/bash -c true ; then echo "dss:error: /usr/local/bin/bash was working."; return 1; fi 
 cp -f /usr/local/bin/bash /bin/bash
-echo "info: succeeded building bash."
-echo "info: new bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
-echo "info: new bash ls: $(ls -l $(which bash))"
-echo "fixmethod: src build"
+echo "dss:info: succeeded building bash."
+echo "dss:info: new bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
+echo "dss:info: new bash ls: $(ls -l $(which bash))"
+echo "dss:fixmethod: src build"
 }
 
 function build_from_source_unused() {
@@ -332,13 +358,19 @@ print_vulnerability_status beforefix || return $?
 print_info
 
 if ! is_CVE_2014_7169_vulnerable && ! is_CVE_2014_6271_vulnerable ; then 
-  echo "info: the server appears to not be vulnerable.  Not doing anything."
+  echo "dss:info: the server appears to not be vulnerable.  Not doing anything."
   return 0
 fi
 
 # improve apt sources
 convert_deb_6_stable_repo_to_squeeze  || return $?
 convert_old_lenny_repo || return $?
+
+# https://wiki.ubuntu.com/Releases
+# lucid server still current?
+for distro in $EOL_UBUNTU_DISTROS; do 
+  convert_old_ubuntu_repo $distro || return $?
+done
 add_missing_squeeze_lts || return $?
 
 fix_missing_lsb_release
@@ -360,7 +392,7 @@ if [ "--usage" = "$1" ] ; then
 elif [ "--check" = "$1" ] ; then
   print_info
 elif [ "--source" = "$1" ] ; then 
-  echo "Loading deshellshock functions"
+  echo "dss:Loading deshellshock functions"
 else 
   run
   ret=$?
