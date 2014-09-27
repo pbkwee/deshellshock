@@ -19,7 +19,7 @@ function print_usage() {
   
   Run with --usage to get this message
   
-  Run without an argument to try and fix your server
+  Run without an argument to try and fix your server"
 }
 
 function print_CVE_2014_7169_vulnerable() {
