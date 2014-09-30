@@ -3,9 +3,9 @@ export DEBIAN_FRONTEND=noninteractive
 # https://wiki.ubuntu.com/Releases
 # lucid server still current?
 EOL_UBUNTU_DISTROS="breezy dapper edgy feisty gutsy hardy hoary intrepid jaunty karmic maverick natty oneiric quantal raring warty" 
-
+SUPPORTED_UBUNTU_DISTROS="lynx pangolin tahr unicorn"
 function print_usage() {
-  echo "deshellshock is a cross-distro script to determine the vulnerability of a bash binary to the shellshock exploits (CVE-2014-6271 or CVE-2014-7169) and then patch that where possible.
+  echo "deshellshock is a cross-distro script to determine the vulnerability of a bash binary to the shellshock exploits (CVE-2014-6271, CVE-2014-7169, CVE-2014-6277, or CVE-2014-6278) and then patch that where possible.
 
 deshellshock works on a number of different distros.  Including some that no longer have official support.  It uses apt, yum, rpm downloads, repository corrections and source builds as appropriate.
 
@@ -48,6 +48,17 @@ echo "N"
 return 1
 }
 
+function print_CVE_2014_6277_6278_vulnerable() {
+if env ls='() { echo vulnerable; }' bash -c ls 2>&1 | grep -qai vulnerable; then echo "Y"; return 0; fi
+echo "N"
+return 1
+}
+
+function is_CVE_2014_6277_6278_vulnerable() {
+  print_CVE_2014_6277_6278_vulnerable >/dev/null
+  return $? 
+}
+
 
 function is_CVE_2014_6271_vulnerable() {
   print_CVE_2014_6271_vulnerable > /dev/null
@@ -62,13 +73,42 @@ function is_CVE_2014_7169_vulnerable() {
 function is_vulnerable() {
 	is_CVE_2014_6271_vulnerable && return 0
 	is_CVE_2014_7169_vulnerable && return 0
+	is_CVE_2014_7186_vulnerable && return 0
+	is_CVE_2014_7187_vulnerable && return 0
+	is_CVE_2014_6277_6278_vulnerable && return 0
 	return 1 
 }
+
+function is_CVE_2014_7186_vulnerable() {
+  print_CVE_2014_7186_vulnerable > /dev/null
+  return $?
+}
+
+function print_CVE_2014_7186_vulnerable() {
+  # http://en.wikipedia.org/wiki/Shellshock_%28software_bug%29#CVE-2014-7186
+  if bash -c 'true <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF' > /dev/null 2>&1 ; then echo "N"; return 1; fi
+  echo "Y" && return 0
+} 
+function is_CVE_2014_7187_vulnerable() {
+  print_CVE_2014_7187_vulnerable > /dev/null
+  return $?
+}
+
+function print_CVE_2014_7187_vulnerable() {
+  # http://en.wikipedia.org/wiki/Shellshock_%28software_bug%29#CVE-2014-7187
+  if (for ((x=1;x<201;x++)) ; do echo "for x$x in ; do :"; done; for ((x=1;x<201;x++)) ; do echo done ; done) | bash > /dev/null 2>&1 ; then echo "N"; return 1; fi
+  echo "Y"
+  return 0
+} 
+
 # use print_vulnerability_status beforefix and print_vulnerability_status afterfix
 function print_vulnerability_status() {
 local prefix=${1:-prefix}
 echo "dss:isvulnerable:$prefix: CVE_2014_6271$(print_CVE_2014_6271_vulnerable)"
 echo "dss:isvulnerable:$prefix: CVE_2014_7169$(print_CVE_2014_7169_vulnerable)"
+echo "dss:isvulnerable:$prefix: CVE_2014_7186$(print_CVE_2014_7186_vulnerable)"
+echo "dss:isvulnerable:$prefix: CVE_2014_7187$(print_CVE_2014_7187_vulnerable)"
+echo "dss:isvulnerable:$prefix: CVE_2014_6277_6278$(print_CVE_2014_6277_6278_vulnerable)"
 }
 
 function prep_shellshock_output_dir() {
@@ -87,12 +127,12 @@ return 0
 function print_info() {
 echo "dss:hostname: $(hostname)"
 echo "dss:date: $(date -u)"
-echo "dss:info: Testing for CVE_2014_6271 (error messages occurring here can be expected):"
+echo "Testing for CVE_2014_6271 (error messages occurring here can be expected):"
 env x='() { :;}; echo vulnerable' bash -c "echo" 2>&1
 local val1=$(print_CVE_2014_6271_vulnerable)
 local ret1=$?
 echo "dss:CVE_2014_6271 result isvulnerable $val1 $ret1"
-echo "dss:info: Testing for CVE-2014_7169 (error messages occurring here can be expected):"
+echo "Testing for CVE-2014_7169 (error messages occurring here can be expected):"
 if [ -f echo ] ; then 
   echo "dss:warn: Cannot test.  There is an echo file already."; 
   val2="NA"
@@ -103,7 +143,28 @@ else
   local val2=$(print_CVE_2014_7169_vulnerable)
   local ret2=$?
 fi
+
 echo "dss:CVE-2014_7169 result isvulnerable $val2 $ret2"
+echo "Testing for CVE_2014_6277_6278 (error messages occurring here can be expected):"
+env ls='() { echo vulnerable; }' bash -c ls
+local val3=$(print_CVE_2014_6277_6278_vulnerable)
+local ret3=$?
+echo "dss:CVE-2014_6277_6278 result isvulnerable $val3 $ret3"
+
+echo "Testing for CVE_2014_7186:"
+bash -c 'true <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF <<EOF' ||
+echo "CVE-2014-7186 vulnerable, redir_stack"
+local val4=$(print_CVE_2014_7186_vulnerable)
+local ret4=$?
+echo "dss:CVE_2014_7186 result isvulnerable $val4 $ret4"
+
+echo "Testing for CVE_2014_7187:"
+(for ((x=1;x<201;x++)) ; do echo "for x$x in ; do :"; done; for ((x=1;x<201;x++)) ; do echo done ; done) | bash ||
+echo "CVE-2014-7187 vulnerable, word_lineno"
+local val5=$(print_CVE_2014_7187_vulnerable)
+local ret5=$?
+echo "dss:CVE_2014_7187 result isvulnerable $val5 $ret5"
+
 echo "dss:info: Bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
 echo "dss:info: Bash ls: $(ls -l $(which bash))"
 echo "dss:Redhat-release: $([ ! -f /etc/redhat-release ] && echo 'NA'; [ -f /etc/redhat-release ] && cat /etc/redhat-release)"
@@ -236,6 +297,7 @@ if dpkg -s bash 2>/dev/null | grep -q "Status.*installed" ; then
   ret=$?
   if [ $ret -eq 0 ]; then
   	echo "dss:fixmethod: apt-get install" 
+  	return 0
   fi
   echo "dss:error: Failed doing apt-get -y force-yes install bash"
   cd /root/deshellshockinfo
@@ -297,12 +359,12 @@ else echo "dss:info: yum install failed on a rhel4 distro."; return 1 ; fi
 return 0
 }
 
-function fix_wbel3_via_SOL_message() {
+function report_unsupported() {
   ! is_vulnerable && return 0 
-if [ ! -f /etc/redhat-release ]; then echo "dss:info: Not redhat.  Not doing RH4 fix."; return 0; fi
+if [ ! -f /etc/redhat-release ]; then return 0; fi
 if grep -qai 'Shrike' /etc/redhat-release; then 
   # RH9
-  true
+  return 0
 elif grep -qai 'release.* 7' /etc/redhat-release; then 
   # yum install
   return 0
@@ -313,10 +375,11 @@ elif  grep -qai 'release.* 5' /etc/redhat-release; then
   # yum install 
   return 0
 elif  grep -qai 'release.* 4' /etc/redhat-release; then
-  # rpm build 
+  # install prebuilt rpm 
   return 0
-elif  grep -qai 'release.* 3' /etc/redhat-release; then 
-  true
+elif  grep -qai 'release.* 3' /etc/redhat-release; then
+  # install prebuilt rpm 
+  return 0
 elif  grep -qai 'release.* 2' /etc/redhat-release; then 
   true
 elif  grep -qai 'release.* 1' /etc/redhat-release; then 
@@ -327,7 +390,7 @@ fi
 
 # cat /etc/redhat-release 
 #Red Hat Enterprise Linux WS release 4 (Nahant)
-echo "dss:warn: There is currently no autopatch option for $(cat /etc/redhat-release)"
+echo "dss:warn: There is currently no autopatch option for $(print_distro_info)"
 return 1
 }
 
@@ -364,18 +427,30 @@ function fix_rhel4_via_rpmbuild() {
     yum install -y $(rpmbuild -ba bash.spec 2>&1 | grep needed | awk {' print $1 '})
     if ! rpmbuild -ba bash.spec; then echo "dss:error: rpmbuild of bash for rhel4 failed."; return 1; fi
     if [ ! -f /root/rpmbuild/RPMS/i386/bash-3.0-27.i386.rpm ]; then echo "dss:error: rpmbuild of bash for rhel4 failed, rpm not created."; return 1; fi
-    if ! rpm -Uvh -oldpackage /root/rpmbuild/RPMS/i386/bash-3.0-27.i386.rpm; then echo "dss:error: Install of built bash rpm failed."; return 1; fi
+    # --replacepkgs fixes "package bash-3.0-27 is already installed"
+    # --replacefiles fixes "/bin/bash from install of bash-3.0-27 conflicts with file from package bash-3.0-27"
+    if ! rpm -Uvh --oldpackage --replacepkgs --replacefiles /root/rpmbuild/RPMS/i386/bash-3.0-27.i386.rpm; then echo "dss:error: Install of built bash rpm failed."; return 1; fi
 	echo "dss:fixmethod: bash RPM patch and build" 
 	return 0
 }
 
-function fix_rhel4_via_rpm_download() {
+function fix_rhel4_rhel3_via_rpm_download() {
   [ ! -f /etc/redhat-release ] && return 0
   ! is_vulnerable && return 0 
-  ! grep -qai 'release.* 4' /etc/redhat-release && return 0
-  # -oldpackage since I found a few places where there was a 'newer' but exploitable rpm
-  if ! rpm --oldpackage -Uvh http://downloads.rimuhosting.com/bash-3.0-27.i386.rpm ; then echo "dss:error: Failing installing downloaded rhel4 rpm"; fi
-  echo "dss:fixmethod: bash RPM download"  
+  # worked on Red Hat Enterprise Linux AS release 3 (Taroon Update 8)
+  ! egrep -qai 'release.* 4|release.* 3' /etc/redhat-release && return 0
+  # --oldpackage since I found a few places where there was a 'newer' but exploitable rpm
+  if ! rpm --oldpackage --replacepkgs --replacefiles  -Uvh http://downloads.rimuhosting.com/bash-3.0-27.i386.rpm ; then echo "dss:error: Failing installing downloaded rhel3/4 rpm"; fi
+  echo "dss:fixmethod: bash RPM download for rhel3/4"  
+  return 0
+}
+
+function fix_rh9_via_rpm_download() {
+  [ ! -f /etc/redhat-release ] && return 0
+  ! is_vulnerable && return 0 
+  ! egrep -qai 'Shrike' /etc/redhat-release && return 0
+  if ! rpm --oldpackage --replacepkgs --replacefiles  -Uvh http://downloads.rimuhosting.com/rh9/bash-3.0-27.i386.rpm ; then echo "dss:error: Failing installing downloaded rh9 rpm"; fi
+  echo "dss:fixmethod: bash RPM download for rh9"  
   return 0
 }
 
@@ -445,13 +520,16 @@ fi
 return 0
 }
 
-function fix_via_build_for_certain_distros() {
+function fix_via_build_for_unsupported_debians_and_ubuntus() {
   ! is_vulnerable && return 0 
 if [ $(print_distro_info | egrep 'Debian|Ubuntu' | wc -l) -eq 0 ]; then echo "dss:info: Not a debian or ubuntu distro.  Not attempting to install from source."; return 0; fi
+if print_distro_info | grep Ubuntu | egrep -qai "$(echo $SUPPORTED_UBUNTU_DISTROS | sed 's/ /|/')"; then echo "dss:info: This is a currently supported Ubuntu distro.  Not attempting to install from source."; return 0; fi
 if [ $(print_distro_info | egrep 'Debian GNU/Linux 7|Debian GNU/Linux 6|Ubuntu.*10.04|Ubuntu.*14.04|Ubuntu.*13' | wc -l) -gt 0 ]; then echo "dss:info: Not attempting to install from source.  There are better options available for this distro."; return 0; fi
 
-if [ $(print_distro_info | egrep 'Debian GNU/Linux 5|Ubuntu 8|Ubuntu.*12.04' | wc -l) -eq 0 ]; then echo "dss:info: Not one of the 'known to work' options for install from source: Debian GNU/Linux 5.  Not attempting to install from source."; return 0; fi
+# just try.  we are likely otherwise out of options for them
+#if [ $(print_distro_info | egrep 'Debian GNU/Linux 5|Ubuntu 8|Ubuntu 9|Ubuntu 8|Ubuntu.*12.04' | wc -l) -eq 0 ]; then echo "dss:info: Not one of the 'known to work' options for install from source: Debian GNU/Linux 5.  Not attempting to install from source."; return 0; fi
 
+# worked on at least as far back ubuntu 9.04, debian 3.1
 echo "dss:info: This is an ubuntu/debian distro.  Likely out of long term support.  Attempting to make/install bash from source."
 
 apt-get update
@@ -473,7 +551,7 @@ cd bash-3.2 || return 1
 # Note: CVE-2014-6271 is patched by release 52.
 # Release 53 is not out on the GNU mirror yet - it should address CVE-2014-7169.
 for i in $(seq -f "%03g" 1 54); do
-    wget -nv http://ftp.gnu.org/gnu/bash/bash-3.2-patches/bash32-$i
+    wget -nc http://ftp.gnu.org/gnu/bash/bash-3.2-patches/bash32-$i
     patch -p0 < bash32-$i
 done
 
@@ -498,7 +576,7 @@ mkdir src || return 1
 cd src || return 1
 wget http://ftp.gnu.org/gnu/bash/bash-4.3.tar.gz || return 1
 #download all patches
-for i in $(seq -f "%03g" 0 27); do wget     http://ftp.gnu.org/gnu/bash/bash-4.3-patches/bash43-$i; done
+for i in $(seq -f "%03g" 0 27); do wget -nc http://ftp.gnu.org/gnu/bash/bash-4.3-patches/bash43-$i; done
 tar zxvf bash-4.3.tar.gz || return 1
 cd bash-4.3 || return 1
 #apply all patches
@@ -517,7 +595,7 @@ prep_shellshock_output_dir || return $?
 print_vulnerability_status beforefix || return $?
 print_info
 
-if ! is_CVE_2014_7169_vulnerable && ! is_CVE_2014_6271_vulnerable ; then 
+if ! is_vulnerable ; then 
   echo "dss:info: The server appears to not be vulnerable.  Not doing anything."
   return 0
 fi
@@ -539,22 +617,23 @@ fix_via_apt_install_bash #|| return $?
 
 yum_enable_rhel4 || return $?
 
-fix_wbel3_via_SOL_message || return $?
-fix_rhel4_via_rpm_download || return $?
+fix_rhel4_rhel3_via_rpm_download || return $?
+fix_rh9_via_rpm_download || return $?
 # does faila bit...
 fix_rhel4_via_rpmbuild #|| return $?
 fix_centos5_plus_via_yum_install || return $?
 fix_ubuntu_11_10_via_deb_pkg_install || return $?
-fix_via_build_for_certain_distros || return $?
+fix_via_build_for_unsupported_debians_and_ubuntus || return $?
 
+report_unsupported || return $?
 return 0
 }
 
-if [ "--usage" = "$1" ] ; then
+if [ "--usage" = "${ACTION:-$1}" ] ; then
   print_usage
-elif [ "--check" = "$1" ] ; then
+elif [ "--check" = "${ACTION:-$1}" ] ; then
   print_info
-elif [ "--source" = "$1" ] ; then 
+elif [ "--source" = "${ACTION:-$1}" ] ; then 
   echo "dss: Loading deshellshock functions"
 else 
   run
