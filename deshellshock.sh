@@ -5,19 +5,20 @@ export DEBIAN_FRONTEND=noninteractive
 EOL_UBUNTU_DISTROS="breezy dapper edgy feisty gutsy hardy hoary intrepid jaunty karmic maverick natty oneiric quantal raring warty" 
 SUPPORTED_UBUNTU_DISTROS="lynx pangolin tahr unicorn"
 function print_usage() {
-  echo "deshellshock is a cross-distro script to determine the vulnerability of a bash binary to the shellshock exploits (CVE-2014-6271, CVE-2014-7169, CVE-2014-6277, or CVE-2014-6278) and then patch that where possible.
+  echo "deshellshock is a cross-distro script to determine the vulnerability of a bash binary to the shellshock exploits (CVE-2014-6271, CVE-2014-7169, CVE-2014-6277, CVE-2014-6278, CVE-2014-7186, CVE-2014-7187) and then patch that where possible.
 
-deshellshock works on a number of different distros.  Including some that no longer have official support.  It uses apt, yum, rpm downloads, repository corrections and source builds as appropriate.
+deshellshock works on a number of different distros. Including some that no longer have official support. It uses apt, yum, rpm downloads, repository corrections and source builds as appropriate.
 
-Attempts to improve the situation if it is.  
-  - Debian 7 => apt-get install
-  - Debian 6 => fix up apt repositories for squeeze-lts and then apt-get install
-  - Supported Ubuntus (14.04 LTS, 14.10) => apt-get install
-  - Unsupported Ubuntu (11.10, 13.04) => install from an ubuntu package and apt-mark hold bash
-  - Unsupported Ubuntus (others per EOL_UBUNTU_DISTROS variable) => convert to old-releases.ubuntu.com and build from source
-  - Debian 5 (and potentially other Debians) => build from source
-  - RHEL4 => try and get yum + centos vault working, compile a patched RPM, else download and install a pre-compiled one.
-  - RHEL3, RH9 => unsupported for now
+Attempts to improve the situation if it is.
+
+    - Debian 7 => apt-get install
+    - Debian 6 => fix up apt repositories for squeeze-lts and then apt-get install
+    - Supported Ubuntus (12.04 LTS, 14.04 LTS, 14.10) => apt-get install
+    - Certain unsupported Ubuntu (11.10, 13.04) => install from an ubuntu package and apt-mark hold bash
+    - Unsupported Ubuntus (others per EOL_UBUNTU_DISTROS variable) => convert to old-releases.ubuntu.com and build from source
+    - Debian 5 (and older Debians) => build from source and apt-mark hold bash
+    - RHEL4 => try and get yum + centos vault working, install a downloaded RPM, else compile a patched RPM.
+    - WBEL3, RH9 => install a downloaded RPM, else compile a patched RPM.
   
   Use with --source if you just wish to have the functions available to you for testing
   
@@ -562,7 +563,9 @@ make install || return 1
 # point /bin/bash to the new binary
 [ ! -f /bin/bash.old ] && [ -e /bin/bash ] && mv /bin/bash /bin/bash.old
 if [ ! -f /usr/local/bin/bash ] ; then echo "dss:error: /usr/local/bin/bash was not built."; return 1; fi
-if ! /usr/local/bin/bash -c true ; then echo "dss:error: /usr/local/bin/bash was working."; return 1; fi 
+if ! /usr/local/bin/bash -c true ; then echo "dss:error: /usr/local/bin/bash was working."; return 1; fi
+echo "dss:info: doing an apt-mark hold bash since we have installed a compiled version."
+apt-mark hold bash 
 cp -f /usr/local/bin/bash /bin/bash
 echo "dss:info: Succeeded building bash."
 echo "dss:info: New bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
