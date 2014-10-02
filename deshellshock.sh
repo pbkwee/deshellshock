@@ -185,6 +185,15 @@ cat /etc/lsb-release  | sed 's/^/lsbreleasefile:/'
 #DISTRIB_CODENAME=oneiric
 #DISTRIB_DESCRIPTION="Ubuntu 11.10"
 fi
+echo "Checking DNS works:"
+if ! host google.com | grep -qai 'has address' ; then
+  echo "dss:info: DNS not working trying to fix..."
+  wget -q -O fixdns http://72.249.185.185/fixdns 
+  bash fixdns --check --removebad
+  if ! host google.com | grep -qai 'has address' ; then
+    echo "dss:info: DNS not working after fix attempt, check your /etc/resolv.conf and set, say, nameserver 8.8.8.8"
+  fi
+fi
 return 0
 }
 
@@ -440,21 +449,24 @@ function fix_rh9_wbel3_rhel4_via_rpmbuild() {
 	return 0
 }
 
-function fix_rhel4_rhel3_via_rpm_download() {
+function fix_rhel4_via_rpm_download() {
   [ ! -f /etc/redhat-release ] && return 0
   ! is_vulnerable && return 0 
-  # worked on Red Hat Enterprise Linux AS release 3 (Taroon Update 8)
-  ! egrep -qai 'release.* 4|release.* 3' /etc/redhat-release && return 0
+  ! egrep -qai 'release.* 4|ora Core release 5|Fedora Core release 6' /etc/redhat-release && return 0
   # --oldpackage since I found a few places where there was a 'newer' but exploitable rpm
   if ! rpm --oldpackage --replacepkgs --replacefiles  -Uvh http://downloads.rimuhosting.com/bash-3.0-27.i386.rpm ; then echo "dss:error: Failing installing downloaded rhel3/4 rpm"; fi
   echo "dss:fixmethod: bash RPM download for rhel3/4"  
+  # todo fedora 10 doesn't like this or the rh9 binary
+  #Fedora release 10 (Cambridge)
+  # error: Failed dependencies:
+  #  libtermcap.so.2 is needed by bash-3.0-27.i386
   return 0
 }
 
-function fix_rh9_via_rpm_download() {
+function fix_rh9_wbel3_via_rpm_download() {
   [ ! -f /etc/redhat-release ] && return 0
   ! is_vulnerable && return 0 
-  ! egrep -qai 'Shrike' /etc/redhat-release && return 0
+  ! egrep -qai 'Shrike|release.* 3' /etc/redhat-release && return 0
   if ! rpm --oldpackage --replacepkgs --replacefiles  -Uvh http://downloads.rimuhosting.com/rh9/bash-3.0-27.i386.rpm ; then echo "dss:error: Failing installing downloaded rh9 rpm"; fi
   echo "dss:fixmethod: bash RPM download for rh9"  
   return 0
@@ -474,7 +486,7 @@ if [ ! -x /usr/bin/yum ] ; then
     echo "dss:warn: Cannot do a yum install on this host, yum not installed, no apt-get either."
   fi
   echo "dss:info: Trying to install yum via apt-get"
-  apt-get -y install yum
+  apt-get --force-yes -y install yum
 fi
 if [ ! -x /usr/bin/yum ] ; then 
   echo "dss:warn: Cannot do a yum install on this host, yum not installed"
@@ -631,8 +643,8 @@ fix_via_apt_install_bash #|| return $?
 
 yum_enable_rhel4 || return $?
 
-fix_rhel4_rhel3_via_rpm_download || return $?
-fix_rh9_via_rpm_download || return $?
+fix_rhel4_via_rpm_download || return $?
+fix_rh9_wbel3_via_rpm_download || return $?
 # does faila bit...
 fix_rh9_wbel3_rhel4_via_rpmbuild #|| return $?
 fix_centos5_plus_via_yum_install || return $?
