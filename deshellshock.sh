@@ -1,4 +1,5 @@
 #!/bin/bash
+grep root /etc/passwd | grep tcsh &&  echo "dss:error: deshellshock.sh needs to be run as a script, rather than a set of commands on a tsch shell." && exit 1
 export DEBIAN_FRONTEND=noninteractive
 # https://wiki.ubuntu.com/Releases
 # lucid server still current?
@@ -264,11 +265,14 @@ return 0
 }
 
 function print_distro_info() {
-if which lsb_release >/dev/null 2>&1; then 
-  local foo="dss:distroinfo: $(lsb_release -a 2>/dev/null)"
+ if [ -x /usr/bin/lsb_release ] || [ -x /bin/lsb_release ] ; then    
+  local foo="dss:distroinfo: $(lsb_release -a 2>/dev/null)" 
   echo $foo
 elif [ -f /etc/redhat-release ]; then
   local foo="dss:distroinfo: REDHAT $(cat /etc/redhat-release)" 
+  echo $foo
+elif [ -f /etc/debian_version ]; then
+  local foo="dss:distroinfo: DEBIAN $(cat /etc/debian_version)" 
   echo $foo
 else echo "dss:distroinfo: NA"; fi
 return 0
@@ -302,7 +306,8 @@ if dpkg -s bash 2>/dev/null | grep -q "Status.*installed" ; then
   fi
   echo "dss:error: Failed doing apt-get -y force-yes install bash"
   cd /root/deshellshockinfo
-  apt-get download bash
+  # download isnt an option on some older apts
+  apt-get download bash 2>/dev/null
   ret=$?
   file=$(find . -name '*.deb' | grep bash | head -n 1)
   if [ $ret -ne 0 ] || [ -z "$file" ]; then
@@ -396,17 +401,17 @@ return 1
 }
 
 # build an rpm package
-function fix_rhel4_via_rpmbuild() {
+function fix_rh9_wbel3_rhel4_via_rpmbuild() {
   [ ! -f /etc/redhat-release ] && return 0
   ! is_vulnerable && return 0 
-  ! grep -qai 'release.* 4' /etc/redhat-release && return 0
+  ! egrep -qai 'release.* 4|Shrike|release.* 3' /etc/redhat-release && return 0
   echo "dss:info: Attempting to build a patched bash RPM from a SRPM."
     mkdir -p /root/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS} 
     echo "%_topdir /root/rpmbuild/" > /root/.rpmmacros
     rpm -Uvh http://vault.centos.org/4.9/apt/i386/SRPMS.updates/bash-3.0-27.el4.src.rpm
     cd /root/rpmbuild/SOURCES/
     # http://ftp.gnu.org/pub/gnu/bash/bash-3.0-patches/
-    for((i=17;i<20;i++)); do 
+    for((i=17;i<21;i++)); do 
     wget -O bash30-0$i http://ftp.gnu.org/pub/gnu/bash/bash-3.0-patches/bash30-0$i || return 1
     # bash30-017:*** ../bash-3.0.16/builtins/common.h	2004-04-23 16:51:00.000000000 -0400
     # bash30-017:--- builtins/common.h	2014-09-16 21:57:03.000000000 -0400
@@ -506,7 +511,7 @@ if uname -a | grep -qai i686; then
   ret=$?
   echo "dss:fixmethod: dpkg ubuntu"
   # prevent upgrades overwriting this one
-  [ $ret -eq 0 ] && sudo apt-mark hold bash
+  [ $ret -eq 0 ] && [ -x /usr/bin/apt-mark ] && sudo apt-mark hold bash
   return $ret
 else 
   echo "dss:info: Attempting to patch this distro, which is no longer supported, with the 64 bit lts deb package"
@@ -515,7 +520,7 @@ else
   ret=$?
   echo "dss:fixmethod: dpkg ubuntu"
   # prevent upgrades overwriting this one
-  [ $ret -eq 0 ] && sudo apt-mark hold bash
+  [ $ret -eq 0 ] && [ -x /usr/bin/apt-mark ] && sudo apt-mark hold bash
   return $ret
 fi
 return 0
@@ -523,12 +528,12 @@ return 0
 
 function fix_via_build_for_unsupported_debians_and_ubuntus() {
   ! is_vulnerable && return 0 
-if [ $(print_distro_info | egrep 'Debian|Ubuntu' | wc -l) -eq 0 ]; then echo "dss:info: Not a debian or ubuntu distro.  Not attempting to install from source."; return 0; fi
-if print_distro_info | grep Ubuntu | egrep -qai "$(echo $SUPPORTED_UBUNTU_DISTROS | sed 's/ /|/')"; then echo "dss:info: This is a currently supported Ubuntu distro.  Not attempting to install from source."; return 0; fi
-if [ $(print_distro_info | egrep 'Debian GNU/Linux 7|Debian GNU/Linux 6|Ubuntu.*10.04|Ubuntu.*14.04|Ubuntu.*13' | wc -l) -gt 0 ]; then echo "dss:info: Not attempting to install from source.  There are better options available for this distro."; return 0; fi
+if [ $(print_distro_info | egrep -i 'Debian|Ubuntu' | wc -l) -eq 0 ]; then echo "dss:info: Not a debian or ubuntu distro.  Not attempting to install from source."; return 0; fi
+if print_distro_info | grep -i Ubuntu | egrep -qai "$(echo $SUPPORTED_UBUNTU_DISTROS | sed 's/ /|/')"; then echo "dss:info: This is a currently supported Ubuntu distro.  Not attempting to install from source."; return 0; fi
+if [ $(print_distro_info | egrep 'Debian GNU/Linux 7|Debian GNU/Linux 6|Ubuntu .*10.04|Ubuntu .*14.04|Ubuntu .*13' | wc -l) -gt 0 ]; then echo "dss:info: Not attempting to install from source.  There are better options available for this distro."; return 0; fi
 
 # just try.  we are likely otherwise out of options for them
-#if [ $(print_distro_info | egrep 'Debian GNU/Linux 5|Ubuntu 8|Ubuntu 9|Ubuntu 8|Ubuntu.*12.04' | wc -l) -eq 0 ]; then echo "dss:info: Not one of the 'known to work' options for install from source: Debian GNU/Linux 5.  Not attempting to install from source."; return 0; fi
+#if [ $(print_distro_info | egrep 'Debian GNU/Linux 5|Ubuntu 8|Ubuntu 9|Ubuntu 8|Ubuntu .*12.04' | wc -l) -eq 0 ]; then echo "dss:info: Not one of the 'known to work' options for install from source: Debian GNU/Linux 5.  Not attempting to install from source."; return 0; fi
 
 # worked on at least as far back ubuntu 9.04, debian 3.1
 echo "dss:info: This is an ubuntu/debian distro.  Likely out of long term support.  Attempting to make/install bash from source."
@@ -551,7 +556,7 @@ cd bash-3.2 || return 1
 # download and apply all patches, including the latest one that patches CVE-2014-6271
 # Note: CVE-2014-6271 is patched by release 52.
 # Release 53 is not out on the GNU mirror yet - it should address CVE-2014-7169.
-for i in $(seq -f "%03g" 1 54); do
+for i in $(seq -f "%03g" 1 55); do
     wget -nc http://ftp.gnu.org/gnu/bash/bash-3.2-patches/bash32-$i
     patch -p0 < bash32-$i
 done
@@ -565,7 +570,7 @@ make install || return 1
 if [ ! -f /usr/local/bin/bash ] ; then echo "dss:error: /usr/local/bin/bash was not built."; return 1; fi
 if ! /usr/local/bin/bash -c true ; then echo "dss:error: /usr/local/bin/bash was working."; return 1; fi
 echo "dss:info: doing an apt-mark hold bash since we have installed a compiled version."
-apt-mark hold bash 
+ [ -x /usr/bin/apt-mark ] && apt-mark hold bash 
 cp -f /usr/local/bin/bash /bin/bash
 echo "dss:info: Succeeded building bash."
 echo "dss:info: New bash version: $(bash --version 2>&1| grep version | grep -v gpl)"
@@ -579,11 +584,11 @@ mkdir src || return 1
 cd src || return 1
 wget http://ftp.gnu.org/gnu/bash/bash-4.3.tar.gz || return 1
 #download all patches
-for i in $(seq -f "%03g" 0 27); do wget -nc http://ftp.gnu.org/gnu/bash/bash-4.3-patches/bash43-$i; done
+for i in $(seq -f "%03g" 0 28); do wget -nc http://ftp.gnu.org/gnu/bash/bash-4.3-patches/bash43-$i; done
 tar zxvf bash-4.3.tar.gz || return 1
 cd bash-4.3 || return 1
 #apply all patches
-for i in $(seq -f "%03g" 0 27);do patch -p0 < ../bash43-$i; done
+for i in $(seq -f "%03g" 0 28);do patch -p0 < ../bash43-$i; done
 #build and install
 ./configure && make && make install  || return 1
 cd ..
@@ -594,7 +599,13 @@ return 0
 
 
 function run() {
-prep_shellshock_output_dir || return $?
+if ! prep_shellshock_output_dir ; then
+    ret=$?
+    print_vulnerability_status beforefix
+    print_info
+    return  $ret
+fi
+
 print_vulnerability_status beforefix || return $?
 print_info
 
@@ -623,7 +634,7 @@ yum_enable_rhel4 || return $?
 fix_rhel4_rhel3_via_rpm_download || return $?
 fix_rh9_via_rpm_download || return $?
 # does faila bit...
-fix_rhel4_via_rpmbuild #|| return $?
+fix_rh9_wbel3_rhel4_via_rpmbuild #|| return $?
 fix_centos5_plus_via_yum_install || return $?
 fix_ubuntu_11_10_via_deb_pkg_install || return $?
 fix_via_build_for_unsupported_debians_and_ubuntus || return $?
