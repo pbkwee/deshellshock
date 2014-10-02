@@ -28,4 +28,3 @@ todo
 
 This is an initial release.  Needs testing on different distros.  Use at your own risk.  Please contribute back patches for errors and additional distros.
 
-CVE-2014-7186, CVE-2014-7187 are currently undisclosed.  So there are no fixes at the time of writing.  Keeping an eye on http://ftp.gnu.org/gnu/bash/bash-3.2-patches/ for something later than 54 and on https://security-tracker.debian.org/tracker/source-package/bash to not list CVE-2014 open issues.
