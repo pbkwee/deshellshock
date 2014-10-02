@@ -438,6 +438,7 @@ function fix_rh9_wbel3_rhel4_via_rpmbuild() {
     
     cd /root/rpmbuild/SPECS
     yum install -y texinfo bison libtermcap-devel
+    yum install -y rpm-build
     # install build dependencies based on the spec
     yum install -y $(rpmbuild -ba bash.spec 2>&1 | grep needed | awk {' print $1 '})
     if ! rpmbuild -ba bash.spec; then echo "dss:error: rpmbuild of bash for rhel4 failed."; return 1; fi
