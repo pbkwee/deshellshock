@@ -29,7 +29,7 @@ Attempts to improve the situation if it is.
   
   Run without an argument to try and fix your server
   
-  Written by Peter Bryant at http://lauchtimevps.com
+  Written by Peter Bryant at http://launchtimevps.com
   
   Latest version (or thereabouts) available at https://github.com/pbkwee/deshellshock
   "
